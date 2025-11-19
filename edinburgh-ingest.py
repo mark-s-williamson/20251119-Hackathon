@@ -25,7 +25,9 @@ TIME_COLS = [
     "sn_time"
 ]
 
+# Duration columns to convert to SIGNED MINUTES
 DURATION_COLS = ["daylength", "daylength_difference"]
+
 FLOAT_COLS = ["sn_mil_km"]
 
 
@@ -42,7 +44,7 @@ def parse_sheet_year_month(sheet_name):
 
 
 def clean_time_string(value):
-    """Extract the first HH:MM or HH:MM:SS from the string."""
+    """Extract the first HH:MM or HH:MM:SS from a messy string."""
     if not isinstance(value, str):
         return value
     m = re.search(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", value)
@@ -50,7 +52,7 @@ def clean_time_string(value):
 
 
 def to_time(val):
-    """Force any value into a clean datetime.time object."""
+    """Convert any incoming value to datetime.time."""
     if isinstance(val, datetime.time):
         return val
     if isinstance(val, datetime.datetime):
@@ -68,54 +70,49 @@ def to_time(val):
         return None
 
 
-def normalise_signed_duration(val):
+def normalise_signed_minutes(val):
     """
-    Convert values like '+1:25' or '-0:42' into 'HH:MM:SS'
-    before timedelta conversion.
+    Convert signed durations like:
+    '+1:25', '-0:42', '07:33'
+    into signed integer minutes.
     """
     if isinstance(val, str):
         val = val.strip()
         if val == "":
-            return None
+            return np.nan
 
-        # Matches +H:MM or -H:MM
+        # Pattern: optional sign, hours, minutes
         m = re.fullmatch(r"([+-]?\d+):(\d{2})", val)
         if m:
-            sign = "+" if m.group(1).startswith("+") else "-"
-            hours = m.group(1).lstrip("+-")
-            minutes = m.group(2)
-            return f"{sign}{hours}:{minutes}:00"
+            sign_hours = m.group(1)
+            minutes = int(m.group(2))
 
-    # Direct datetime.time → timedelta
+            hours = int(sign_hours)        # signed hours
+            total_minutes = hours * 60 + minutes
+            return total_minutes
+
+    # If timedelta slipped through
+    if isinstance(val, datetime.timedelta):
+        return int(val.total_seconds() // 60)
+
+    # If time slipped through
     if isinstance(val, datetime.time):
-        return datetime.timedelta(
-            hours=val.hour, minutes=val.minute, seconds=val.second
-        )
-
-    # datetime.datetime → time → timedelta
-    if isinstance(val, datetime.datetime):
-        t = val.time()
-        return datetime.timedelta(
-            hours=t.hour, minutes=t.minute, seconds=t.second
-        )
+        return val.hour * 60 + val.minute
 
     # Missing
     if pd.isna(val):
-        return None
+        return np.nan
 
-    return val
-
-
-def safe_to_timedelta(val):
-    """Apply pandas timedelta conversion safely."""
+    # Try generic timedelta parsing
     try:
-        return pd.to_timedelta(val, errors="coerce")
+        td = pd.to_timedelta(val)
+        return int(td.total_seconds() // 60)
     except:
-        return pd.NaT
+        return np.nan
 
 
 # ============================================================
-# 3. LOAD EACH SHEET
+# 3. LOAD SHEETS
 # ============================================================
 
 def load_single_sheet(path, sheet_name):
@@ -157,24 +154,23 @@ def load_all_sheets(path):
 
 df = load_all_sheets("data/Edinburgh-daytime.xlsx")
 
-# Rename columns
+# Rename columns to final names
 df.columns = FINAL_COLUMNS[:len(df.columns)]
 df = df[FINAL_COLUMNS]
 
-# Date → datetime64 (date only)
+# Date → datetime64
 df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
 df["date"] = pd.to_datetime(df["date"])
 
-# Time columns → datetime.time
+# Time-of-day columns → datetime.time
 for col in TIME_COLS:
     df[col] = df[col].apply(to_time)
 
-# Duration → normalise + timedelta
+# Duration columns → signed integer minutes
 for col in DURATION_COLS:
-    df[col] = df[col].apply(normalise_signed_duration)
-    df[col] = df[col].apply(safe_to_timedelta)
+    df[col] = df[col].apply(normalise_signed_minutes).astype("float")
 
-# Float columns
+# Float column
 for col in FLOAT_COLS:
     df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
 
