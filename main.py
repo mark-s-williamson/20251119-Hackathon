@@ -21,10 +21,7 @@ TIME_PATTERN = r"\b\d{1,2}:\d{2}(?::\d{2})?\b"
 # ============================================================
 
 def parse_time(value: str):
-    """
-    Safely extract and parse 'HH:MM' or 'HH:MM:SS' from a messy Excel string.
-    Returns datetime.time or NaN.
-    """
+
     if not isinstance(value, str):
         return np.nan
 
