@@ -1,0 +1,7 @@
+pandas
+nbconvert
+ipykernel
+jupyter
+pylint
+pytest
+openpyxl
