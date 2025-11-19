@@ -68,42 +68,54 @@ def to_time(val):
         return None
 
 
-def to_timedelta(val):
-    """Convert any value (str/time/datetime) into a timedelta safely."""
-    # Already a timedelta
-    if isinstance(val, datetime.timedelta):
-        return val
+def normalise_signed_duration(val):
+    """
+    Convert values like '+1:25' or '-0:42' into 'HH:MM:SS'
+    before timedelta conversion.
+    """
+    if isinstance(val, str):
+        val = val.strip()
+        if val == "":
+            return None
 
-    # datetime.time → convert manually
+        # Matches +H:MM or -H:MM
+        m = re.fullmatch(r"([+-]?\d+):(\d{2})", val)
+        if m:
+            sign = "+" if m.group(1).startswith("+") else "-"
+            hours = m.group(1).lstrip("+-")
+            minutes = m.group(2)
+            return f"{sign}{hours}:{minutes}:00"
+
+    # Direct datetime.time → timedelta
     if isinstance(val, datetime.time):
         return datetime.timedelta(
-            hours=val.hour,
-            minutes=val.minute,
-            seconds=val.second
+            hours=val.hour, minutes=val.minute, seconds=val.second
         )
 
-    # datetime.datetime → time portion → timedelta
+    # datetime.datetime → time → timedelta
     if isinstance(val, datetime.datetime):
         t = val.time()
         return datetime.timedelta(
-            hours=t.hour,
-            minutes=t.minute,
-            seconds=t.second
+            hours=t.hour, minutes=t.minute, seconds=t.second
         )
 
-    # Missing value
-    if pd.isna(val) or val == "":
-        return pd.NaT
+    # Missing
+    if pd.isna(val):
+        return None
 
-    # Try string → timedelta
+    return val
+
+
+def safe_to_timedelta(val):
+    """Apply pandas timedelta conversion safely."""
     try:
-        return pd.to_timedelta(val)
+        return pd.to_timedelta(val, errors="coerce")
     except:
         return pd.NaT
 
 
 # ============================================================
-# 3. LOADING SHEETS
+# 3. LOAD EACH SHEET
 # ============================================================
 
 def load_single_sheet(path, sheet_name):
@@ -149,7 +161,7 @@ df = load_all_sheets("data/Edinburgh-daytime.xlsx")
 df.columns = FINAL_COLUMNS[:len(df.columns)]
 df = df[FINAL_COLUMNS]
 
-# Date → datetime64 date only
+# Date → datetime64 (date only)
 df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
 df["date"] = pd.to_datetime(df["date"])
 
@@ -157,9 +169,10 @@ df["date"] = pd.to_datetime(df["date"])
 for col in TIME_COLS:
     df[col] = df[col].apply(to_time)
 
-# Duration columns → timedelta
+# Duration → normalise + timedelta
 for col in DURATION_COLS:
-    df[col] = df[col].apply(to_timedelta)
+    df[col] = df[col].apply(normalise_signed_duration)
+    df[col] = df[col].apply(safe_to_timedelta)
 
 # Float columns
 for col in FLOAT_COLS:
