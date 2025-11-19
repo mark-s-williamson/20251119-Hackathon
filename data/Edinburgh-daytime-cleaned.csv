@@ -1,4 +1,4 @@
-Date,Sunrise,Sunset,Length,Difference,Start,End,Start.1,End.1,Start.2,End.2,Time,Mil. km
+date,sunrise,sunset,daylength,daylength_difference,at_start,at_end,nt_start,nt_end,ct_start,ct_end,sn_time,sn_mil_km
 2011-12-01,08:18,15:44,07:25:45,2:37,06:00:00,18:02:00,06:45:00,17:17:00,07:33:00,16:29:00,12:01,147.52
 2011-12-02,08:20,15:43,07:23:13,2:31,06:02:00,18:01:00,06:46:00,17:16:00,07:34:00,16:28:00,12:02,147.495
 2011-12-03,08:21,15:42,07:20:48,2:25,06:03:00,18:01:00,06:48:00,17:16:00,07:36:00,16:28:00,12:02,147.471
