@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import re
-
+import os
 
 # ============================================================
 # 1. CONFIGURATION
@@ -73,4 +73,12 @@ if "Solar Noon Mil. km" in df.columns:
 # Standardize blank or bad values
 df = df.replace(EXCEPTIONS, np.nan)
 
-# Drop rows
+# ============================================================
+# 5. OUTPUT CLEANED DATA
+# ============================================================
+
+output_path = "data/Edinburgh-daytime-cleaned.csv"
+os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+df.to_csv(output_path, index=False)
+print(f"Cleaned dataset written to: {output_path}")
